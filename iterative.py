@@ -13,7 +13,6 @@ def get_dns_record(udp_socket, domain:str, parent_server: str, record_type):
   q = DNSRecord.question(domain, qtype = record_type)
   q.header.rd = 0   # Recursion Desired?  NO
   # sends the query via UDP
-  # print("\nDNS query", repr(q))
   udp_socket.sendto(q.pack(), (parent_server, DNS_PORT))
   # waiting for a response up to 8192 bytes
   pkt, _ = udp_socket.recvfrom(8192)
@@ -55,33 +54,25 @@ def get_dns_record(udp_socket, domain:str, parent_server: str, record_type):
   for k in range(header.a):
     a = RR.parse(buff)
     # for authoritative response
-    if a.rtype == QTYPE.A:
-      answers.append((QTYPE[a.rtype], str(a.rname), str(a.rdata)))
-    if a.rtype == QTYPE.NS:
-      answers.append((QTYPE[a.rtype], str(a.rname), str(a.rdata)))
-      # print(f"\n{a}\n")
     if a.rtype == QTYPE.CNAME:
       targ = str(a.rdata)
       print(f"\ncname", targ)
       answers.append((QTYPE[a.rtype], str(a.rdata), str(a.rname)))
+    else:
+      answers.append((QTYPE[a.rtype], str(a.rname), str(a.rdata)))
+    
       
       
   # Parse the authority section #4
   authority = []
   for k in range(header.auth):
     auth = RR.parse(buff)
-    if auth.rtype == QTYPE.A:
-      authority.append((QTYPE[auth.rtype], str(auth.rname), str(auth.rdata)))
-    if auth.rtype == QTYPE.NS:
-      authority.append((QTYPE[auth.rtype], str(auth.rname), str(auth.rdata)))
-    else:
-      authority.append((QTYPE[auth.rtype], str(auth.rname), str(auth.rdata)))
+    authority.append((QTYPE[auth.rtype], str(auth.rname), str(auth.rdata)))
       
   # Parse the additional section #5
   additional = []
   for k in range(header.ar):
     adr = RR.parse(buff)
-    # just IP
     additional.append((QTYPE[adr.rtype], str(adr.rname), str(adr.rdata)))
   return {"answers": answers, "authority": authority, "additional": additional}
 
@@ -132,9 +123,8 @@ def resolve(udp_sock, domain:str, record_type):
       name =  response["authority"][0][2]
       print(cur_server)
       recurs = resolve(udp_sock, name, "A")
-      ips.append(recurs)
-      # response = get_dns_record(udp_sock, name, ROOT_SERVER, "A")
-      # cache[(domain, "A")] = response
+      # ips.append(recurs)
+      return recurs
 
 
       # print(f"new response third: {response}")
@@ -145,7 +135,8 @@ def resolve(udp_sock, domain:str, record_type):
           cur_server = response["additional"][0][2]
           if response["answers"][0][0] == 'A':
             response = get_dns_record(udp_sock, second, cur_server, "A")
-            ips.append(response["answers"][0][2])
+            # ips.append(response["answers"][0][2])
+            return response["answers"][0][2]
       # for i in range(len(response["answers"])):
       #   if response["answers"][0][2] == response["additional"][0][1]:
       #     cur_server = response["additional"][0][2]
@@ -163,8 +154,9 @@ def resolve(udp_sock, domain:str, record_type):
       if response["authority"][0][2] == response["additional"][0][1]:
         cur_server = response["authority"][0][2]
         response = get_dns_record(udp_sock, second, cur_server, "A")
-        print(response["answers"][0][2])
-        ips.append(response["answers"][0][2])
+        # print(response["answers"][0][2])
+        # ips.append(response["answers"][0][2])
+        return response["answers"][0][2]
       # elif response["authority"][0][0] == 'AAAA' and response["additional"][0][0] == 'AAAA':
       #   print(f"authority: {response["authority"]}")
       #   print("stuff")
@@ -201,34 +193,38 @@ def resolve(udp_sock, domain:str, record_type):
       
 def lists():
   # for i in range(len(cache)):
-  for i, (k, v) in enumerate(cache.items()):
-    print(f"{i}: {k}: {v}\n")
+  for i, (k, v) in cache.items():
+    print(f"{i+1}: {k}: {v}\n")
 
 def clear():
-  cache.clear
+  cache.clear()
   print("Your cache has been clear.")
 
-def remove():
-  pass
+def remove(num):
+  for i in range(len(cache)):
+    if i == num:
+      print("remove")
 
 if __name__ == '__main__':
   sock = socket(AF_INET, SOCK_DGRAM)
   sock.settimeout(2)
   while True:
     domain_name = input("Enter a domain name or .exit > ")
-
+    inputs = domain_name.split()
+    print(inputs)
+    if len(inputs) == 2:
+      if inputs[0] == '.remove':
+        remove(int(inputs[1]))
+        break
     if domain_name == '.exit':
       break
     if domain_name == '.list':
       lists()
-      break
+      domain_name = input("Enter a domain name or .exit > ")
+      inputs = domain_name.split()
     if domain_name == '.clear':
-      clear()
+      cache.clear()
       break
-    if domain_name == '.remove':
-      remove()
-      break
-
     while True:
       # Use the function get_dns_record(____) (from the starter code
       # below) to resolve the IP address of the domain name in question
@@ -238,7 +234,7 @@ if __name__ == '__main__':
       if ips:
         ip4 = ips[-1]
         # ip6 = ips[-1]
-        print(f'{domain_name} resolved to IPv4 {ip4} and IPv6')
+        print(f'{domain_name} resolved to IPv4 {ips} and IPv6')
         break
       else:
         print(f'Could not resolve {domain_name}')
