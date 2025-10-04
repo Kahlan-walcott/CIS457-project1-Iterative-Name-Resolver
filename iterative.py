@@ -192,18 +192,32 @@ def resolve(udp_sock, domain:str, record_type):
 
       
 def lists():
-  # for i in range(len(cache)):
-  for i, (k, v) in cache.items():
-    print(f"{i+1}: {k}: {v}\n")
+  i = 1
+  for k, v in cache.items():
+    print(f"{i}: {k}: {v}\n")
+    i += 1
 
 def clear():
   cache.clear()
   print("Your cache has been clear.")
 
 def remove(num):
-  for i in range(len(cache)):
-    if i == num:
-      print("remove")
+  # error checking
+  if num < 0:
+    print("Error: Please put a positive number in.")
+  if num > len(cache):
+    print("Error: You entered a number that is bigger than the cache.")
+  # removing the entry
+  key_at = 0
+  cp = cache.copy()
+  if 0 < num < len(cache):
+    for k in cp.keys():
+      if key_at == num-1:
+        del cache[k]
+        print(f"deleted the {num} entry in cache which was {k}.")
+        break
+      else:
+        key_at += 1
 
 if __name__ == '__main__':
   sock = socket(AF_INET, SOCK_DGRAM)
@@ -215,7 +229,9 @@ if __name__ == '__main__':
     if len(inputs) == 2:
       if inputs[0] == '.remove':
         remove(int(inputs[1]))
-        break
+        print(f"cache after: {cache}")
+        domain_name = input("Enter a domain name or .exit > ")
+        inputs = domain_name.split()
     if domain_name == '.exit':
       break
     if domain_name == '.list':
