@@ -31,7 +31,6 @@ def get_dns_record(udp_socket, domain:str, parent_server: str, record_type):
   """
   
   header = DNSHeader.parse(buff)
-  # print("DNS header", repr(header))
   # ensures the the transaction ID in the response is the same that we sent
   if q.header.id != header.id:
     print("Unmatched transaction.")
@@ -83,7 +82,6 @@ def resolve(udp_sock, domain:str, record_type):
   if dom[-1] == '':
     dom.remove('')
   name = '.' + dom[-1]
-  print(name)
   # first NS Root server query
   result = get_dns_record(udp_sock, dom[-1], ROOT_SERVER, record_type)
   if result is None or result.get("rcode") == "NXDOMAIN":
@@ -93,36 +91,30 @@ def resolve(udp_sock, domain:str, record_type):
   
   # solve from cache
   if (domain, "A") in cache:
-    print("solved")
-    return cache[(domain, record_type)] #needs to return an IP
+    return cache[(domain, record_type)]
   print(f"\nresult: {result}")
   # restart if there is an alias
   if result["answers"]:
     if result["answers"][0][0] == "CNAME":
       return resolve(udp_sock, result["answers"][0][2], "A")
     if result["answers"][0][0] == "A" or result["answers"][0][0] == "AAAA":
-      print("resolved")
+      ips.append(result["answers"][0][0])
 
   cur_server = result["additional"][0][2]
-  print(f"\ncurent server:{cur_server}\n")
   while True:
     # not resolved second time NS
     second = dom[-2] + "." + dom[-1]
-    print(second)
     response = get_dns_record(udp_sock, second, cur_server, "NS")
     if response is None or response.get("rcode") == "NXDOMAIN":
       print(f'{domain} is not a valid domain.')
       return None
     cache[(second, record_type)] = response
 
-    print(f"New cache: {cache}")
-    print(f"\nresponse: {response}\n")
     # third resolve
     if response["answers"]:
       cur_server = response["answers"][0][2]
     elif response["authority"] and response["additional"] == []:
       name =  response["authority"][0][2]
-      # print(cur_server)
       recurs = resolve(udp_sock, name, "A")
       return recurs
 
@@ -135,19 +127,7 @@ def resolve(udp_sock, domain:str, record_type):
               print(f'{domain} is not a valid domain.')
               return None
             return response["answers"][0][2]
-      # for i in range(len(response["answers"])):
-      #   if response["answers"][0][2] == response["additional"][0][1]:
-      #     cur_server = response["additional"][0][2]
-      #     if response["answers"][i][0] == 'A':
-      #       response = get_dns_record(udp_sock, second, cur_server, "A")
-      #       ips.append(response["answers"][0][2])
-      #     elif response["answers"][i][0] == 'AAAA':
-      #       server = response["additional"][i][2]
-      #       print(f"server: {server}")
-            # response = get_dns_record(udp_sock, second, cur_server, "AAAA")
-            # ips.append(response["answers"][0][2])
-
-        # print(response)
+ 
     elif response["answers"] == [] and response["authority"] and response["additional"]:
       if response["authority"][0][2] == response["additional"][0][1]:
         cur_server = response["authority"][0][2]
@@ -155,17 +135,7 @@ def resolve(udp_sock, domain:str, record_type):
         if response is None or response.get("rcode") == "NXDOMAIN":
           print(f'{domain} is not a valid domain.')
           return None
-        # print(response["answers"][0][2])
-        # ips.append(response["answers"][0][2])
         return response["answers"][0][2]
-      # elif response["authority"][0][0] == 'AAAA' and response["additional"][0][0] == 'AAAA':
-      #   print(f"authority: {response["authority"]}")
-      #   print("stuff")
-        # cur_server = 
-        # response = get_dns_record(udp_sock, second, cur_server, "AAAA")
-        # print(response)
-    print("ended here")
-    print(ips)
     return ips
 
       
@@ -203,7 +173,6 @@ if __name__ == '__main__':
   while True:
     domain_name = input("Enter a domain name, .exit, .list, .clear, or .remove integer > ")
     inputs = domain_name.split()
-    print(inputs)
     if len(inputs) == 2:
       if inputs[0] == '.remove':
         remove(int(inputs[1]))
@@ -221,14 +190,17 @@ if __name__ == '__main__':
       inputs = domain_name.split()
     while True:
       # resolving IPv4 IPs
-      ips = resolve(sock, domain_name, record_type="A")
-      if ips is None:
-        break
-      if ips:
-        print(f'{domain_name} resolved to IPv4 {ips} and IPv6')
-        break
-      else:
+      ip4 = resolve(sock, domain_name, record_type="A")
+      ip6 = resolve(sock, domain_name, record_type="AAAA")
+      if ip4 is None and ip6 in None:
         print(f'Could not resolve {domain_name}')
         break
+      if ip4:
+        print(f'{domain_name} resolved to IPv4 {ip4}.')
+        break
+      if ip6:
+        print(f'{domain_name} resolved to IPv6 {ip6}.')
+        break
+
   sock.close()
   
